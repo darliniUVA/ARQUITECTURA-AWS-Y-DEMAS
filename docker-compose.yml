@@ -2,13 +2,13 @@ version: "3.8"
 
 services:
   front-despacho:
-    build: ${DOCKER_USERNAME}/front_despacho
+    build: ./front_despacho
     container_name: tienda-frontend
     ports:
       - "8080:80"
 
   back-ventas:
-    build: ${DOCKER_USERNAME}/back-Ventas_SpringBoot/Springboot-API-REST
+    build: ./back-Ventas_SpringBoot/Springboot-API-REST
     container_name: tienda-back-ventas
     ports:
       - "8081:8081"
@@ -20,7 +20,7 @@ services:
       DB_PASSWORD: admin123
 
   back-despachos:
-    build: ${DOCKER_USERNAME}/back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+    build: ./back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
     container_name: tienda-back-despachos
     ports:
       - "8082:8082"

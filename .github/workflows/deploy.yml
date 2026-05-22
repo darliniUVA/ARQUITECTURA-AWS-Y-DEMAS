@@ -1,4 +1,4 @@
-name: Deploy Multi-Instancia en Paralelo
+name: Deploy Multi-Instancia en Paralelo (AWS SSM)
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   # ----------------------------------------------------------------
-  # JOB 1: AUTOMATIZACIÓN DEL FRONTEND
+  # JOB 1: AUTOMATIZACIÓN DEL FRONTEND (INSTANCIA 1)
   # ----------------------------------------------------------------
   deploy-frontend:
     runs-on: ubuntu-latest
@@ -26,11 +26,12 @@ jobs:
         docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/tienda-frontend:latest "./proyecto semestral/front_despacho"
         docker push ${{ secrets.DOCKERHUB_USERNAME }}/tienda-frontend:latest
 
-    - name: Configurar credenciales AWS
+    - name: Configurar credenciales AWS (Con Token de AWS Academy)
       uses: aws-actions/configure-aws-credentials@v2
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }} # <-- CLAVE PARA AWS ACADEMY
         aws-region: us-east-1
 
     - name: Desplegar Frontend vía SSM
@@ -39,13 +40,13 @@ jobs:
         instance-ids: ${{ secrets.AWS_FRONTEND_INSTANCE_ID }}
         comment: "Desplegando el Frontend de la tienda"
         command: |
-          docker stop tienda-frontend || true
-          docker rm tienda-frontend || true
-          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/tienda-frontend:latest
-          docker run -d --name tienda-frontend -p 80:80 ${{ secrets.DOCKERHUB_USERNAME }}/tienda-frontend:latest
+          sudo docker stop tienda-frontend || true
+          sudo docker rm tienda-frontend || true
+          sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/tienda-frontend:latest
+          sudo docker run -d --name tienda-frontend -p 80:80 ${{ secrets.DOCKERHUB_USERNAME }}/tienda-frontend:latest
 
   # ----------------------------------------------------------------
-  # JOB 2: AUTOMATIZACIÓN DE LOS BACKENDS (Ventas y Despachos)
+  # JOB 2: AUTOMATIZACIÓN DE LOS BACKENDS (INSTANCIA 2)
   # ----------------------------------------------------------------
   deploy-backends:
     runs-on: ubuntu-latest
@@ -66,11 +67,12 @@ jobs:
         docker push ${{ secrets.DOCKERHUB_USERNAME }}/back-ventas:latest
         docker push ${{ secrets.DOCKERHUB_USERNAME }}/back-despachos:latest
 
-    - name: Configurar credenciales AWS
+    - name: Configurar credenciales AWS (Con Token de AWS Academy)
       uses: aws-actions/configure-aws-credentials@v2
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }} # <-- CLAVE PARA AWS ACADEMY
         aws-region: us-east-1
 
     - name: Desplegar Backends vía SSM
@@ -79,30 +81,28 @@ jobs:
         instance-ids: ${{ secrets.AWS_BACKEND_INSTANCE_ID }}
         comment: "Desplegando Microservicios Backend"
         command: |
-          docker stop tienda-back-ventas tienda-back-despachos || true
-          docker rm tienda-back-ventas tienda-back-despachos || true
-          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/back-ventas:latest
-          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/back-despachos:latest
+          sudo docker stop tienda-back-ventas tienda-back-despachos || true
+          sudo docker rm tienda-back-ventas tienda-back-despachos || true
+          sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/back-ventas:latest
+          sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/back-despachos:latest
           
-          # Levantar Ventas apuntando a la IP privada de la máquina de BD
-          docker run -d --name tienda-back-ventas -p 8081:8081 -e DB_HOST=${{ secrets.DB_INSTANCE_IP }} -e DB_USER=root -e DB_PASSWORD=admin123 ${{ secrets.DOCKERHUB_USERNAME }}/back-ventas:latest
-          
-          # Levantar Despachos apuntando a la IP privada de la máquina de BD
-          docker run -d --name tienda-back-despachos -p 8082:8082 -e DB_HOST=${{ secrets.DB_INSTANCE_IP }} -e DB_USER=root -e DB_PASSWORD=admin123 ${{ secrets.DOCKERHUB_USERNAME }}/back-despachos:latest
+          # Se levantan apuntando a la IP privada de la máquina de BD
+          sudo docker run -d --name tienda-back-ventas -p 8081:8081 -e DB_HOST=${{ secrets.DB_INSTANCE_IP }} -e DB_USER=root -e DB_PASSWORD=admin123 ${{ secrets.DOCKERHUB_USERNAME }}/back-ventas:latest
+          sudo docker run -d --name tienda-back-despachos -p 8082:8082 -e DB_HOST=${{ secrets.DB_INSTANCE_IP }} -e DB_USER=root -e DB_PASSWORD=admin123 ${{ secrets.DOCKERHUB_USERNAME }}/back-despachos:latest
 
-  # --------------------------------------------------------------
-  # JOB 3: VERIFICACIÓN Y PERSISTENCIA DE LA BASE DE DATOS (DATA)
+  # ----------------------------------------------------------------
+  # JOB 3: VERIFICACIÓN Y PERSISTENCIA DE LA BASE DE DATOS (INSTANCIA 3)
   # ----------------------------------------------------------------
   check-database:
     runs-on: ubuntu-latest
     steps:
-    - name: Configurar credenciales AWS
+    - name: Configurar credenciales AWS (Con Token de AWS Academy)
       uses: aws-actions/configure-aws-credentials@v2
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }} # <-- CLAVE PARA AWS ACADEMY
         aws-region: us-east-1
-
 
     - name: Asegurar estado de MySQL vía SSM
       uses: aws-actions/aws-ssm-send-command@v2
@@ -110,12 +110,11 @@ jobs:
         instance-ids: ${{ secrets.AWS_DB_INSTANCE_ID }}
         comment: "Verificando persistencia y estado de la Base de Datos"
         command: |
-          # Si el contenedor no existe, lo crea y lo levanta con su volumen persistente
-          if [ ! "$(docker ps -q -f name=tienda-db)" ]; then
-            if [ "$(docker ps -aq -f name=tienda-db)" ]; then
-              docker start tienda-db
+          if [ ! "$(sudo docker ps -q -f name=tienda-db)" ]; then
+            if [ "$(sudo docker ps -aq -f name=tienda-db)" ]; then
+              sudo docker start tienda-db
             else
-              docker run -d \
+              sudo docker run -d \
                 --name tienda-db \
                 -p 3306:3306 \
                 -e MYSQL_ROOT_PASSWORD=admin123 \
