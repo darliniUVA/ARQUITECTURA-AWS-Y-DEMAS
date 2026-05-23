@@ -54,31 +54,31 @@ jobs:
     # ----------------------------------------------------------------
     - name: Verificar Instance IDs
       run: |
-        echo "FRONTEND=${{ secrets.AWS_FRONTEND_INSTANCE_ID }}"
-        echo "BACKEND=${{ secrets.AWS_BACKEND_INSTANCE_ID }}"
-        echo "DB=${{ secrets.AWS_DB_INSTANCE_ID }}"
+         echo "FRONTEND=${{ secrets.EC2_FRONTEND_INSTANCE_ID }}"
+         echo "BACKEND=${{ secrets.EC2_BACKEND_INSTANCE_ID }}"
+         echo "DB=${{ secrets.EC2_DB_INSTANCE_ID }}"
 
     
     - name: Desplegar Frontend en EC2
       run: |
         aws ssm send-command \
           --document-name "AWS-RunShellScript" \
-          --instance-ids "${{ secrets.AWS_FRONTEND_INSTANCE_ID }}" \
+          --instance-ids "${{ secrets.EC2_FRONTEND_INSTANCE_ID }}" \
           --parameters '{"commands":["sudo docker stop tienda-front_despacho || true","sudo docker rm tienda-front_despacho || true","sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/tienda-front_despacho:latest","sudo docker run -d --name tienda-front_despacho -p 80:80 ${{ secrets.DOCKERHUB_USERNAME }}/tienda-front_despacho:latest"]}' \
-          --region us-east-1
+          --AWS_REGION us-east-1
 
     - name: Desplegar Backends en EC2
       run: |
         aws ssm send-command \
           --document-name "AWS-RunShellScript" \
-          --instance-ids "${{ secrets.AWS_BACKEND_INSTANCE_ID }}" \
+          --instance-ids "${{ secrets.EC2_BACKEND_INSTANCE_ID }}" \
           --parameters '{"commands":["sudo docker stop tienda-back-ventas tienda-back-despachos || true","sudo docker rm tienda-back-ventas tienda-back-despachos || true","sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/back-ventas:latest","sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/back-despachos:latest","sudo docker run -d --name tienda-back-ventas -p 8081:8081 -e DB_HOST=${{ secrets.DB_INSTANCE_IP }} -e DB_USER=root -e DB_PASSWORD=admin123 ${{ secrets.DOCKERHUB_USERNAME }}/back-ventas:latest","sudo docker run -d --name tienda-back-despachos -p 8082:8082 -e DB_HOST=${{ secrets.DB_INSTANCE_IP }} -e DB_USER=root -e DB_PASSWORD=admin123 ${{ secrets.DOCKERHUB_USERNAME }}/back-despachos:latest"]}' \
-          --region us-east-1
+          --AWS_REGION us-east-1
 
     - name: Asegurar Persistencia de Base de Datos en EC2
       run: |
         aws ssm send-command \
           --document-name "AWS-RunShellScript" \
-          --instance-ids "${{ secrets.AWS_DB_INSTANCE_ID }}" \
-          --parameters '{"commands":["if [ ! \"$(sudo docker ps -q -f name=tienda-db)\" ]; then if [ \"$(sudo docker ps -aq -f name=tienda-db)\" ]; then sudo docker start tienda-db; else sudo docker run -d --name tienda-db -p 3306:3306 -e MYSQL_ROOT_PASSWORD=admin123 -e MYSQL_DATABASE=tienda_perritos -v dbdata:/var/lib/mysql --restart always mysql:8; fi; fi"]}' \
-          --region us-east-1
+          --instance-ids "${{ secrets.EC2_DB_INSTANCE_ID }}" \
+          --parameters '{"commands":["if [ ! \"$(sudo docker ps -q -f name=tienda-db)\" ]; then if [ \"$(sudo docker ps -aq -f name=tienda-db)\" ]; then sudo docker start tienda-db; else sudo docker run -d --name tienda-db -p 3306:3306 -e MYSQL_ROOT_PASSWORD=admin123 -e MYSQL_DATABASE=tienda_despachos -v dbdata:/var/lib/mysql --restart always mysql:8; fi; fi"]}' \
+          --AWS_REGION us-east-1
