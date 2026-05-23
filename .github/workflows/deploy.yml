@@ -35,16 +35,18 @@ jobs:
         aws-region: us-east-1
 
     - name: Desplegar Frontend vía SSM
-      uses: aws-actions/aws-ssm-send-command@v2
-      with:
-        instance-ids: ${{ secrets.AWS_FRONTEND_INSTANCE_ID }}
-        comment: "Desplegando el Frontend de la tienda"
-        command: |
-          docker stop tienda-front_despacho || true
-          docker rm tienda-front_despacho || true
-          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/tienda-front_despacho:latest
-          docker run -d --name tienda-front_despacho -p 80:80 ${{ secrets.DOCKERHUB_USERNAME }}/tienda-front_despacho:latest
-
+  run: |
+    aws ssm send-command \
+      --instance-ids "${{ secrets.AWS_FRONTEND_INSTANCE_ID }}" \
+      --document-name "AWS-RunShellScript" \
+      --comment "Desplegando Frontend" \
+      --parameters commands="[
+        'docker stop tienda-front_despacho || true',
+        'docker rm tienda-front_despacho || true',
+        'docker pull ${{ secrets.DOCKERHUB_USERNAME }}/tienda-front_despacho:latest',
+        'docker run -d --restart always --name tienda-front_despacho -p 80:80 ${{ secrets.DOCKERHUB_USERNAME }}/tienda-front_despacho:latest'
+      ]" \
+      --region us-east-1
   # ----------------------------------------------------------------
   # JOB 2: AUTOMATIZACIÓN DE LOS BACKENDS (Ventas y Despachos)
   # ----------------------------------------------------------------
@@ -86,7 +88,7 @@ jobs:
         aws ssm send-command \
           --document-name "AWS-RunShellScript" \
           --instance-ids "${{ secrets.AWS_FRONTEND_INSTANCE_ID }}" \
-          --parameters '{"commands":["sudo docker stop tienda-frontend || true","sudo docker rm tienda-frontend || true","sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/tienda-frontend:latest","sudo docker run -d --name tienda-frontend -p 80:80 ${{ secrets.DOCKERHUB_USERNAME }}/tienda-frontend:latest"]}' \
+          --parameters '{"commands":["sudo docker stop tienda-front_despacho || true","sudo docker rm tienda-front_despacho || true","sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/tienda-front_despacho:latest","sudo docker run -d --name tienda-front_despacho -p 80:80 ${{ secrets.DOCKERHUB_USERNAME }}/tienda-front_despacho:latest"]}' \
           --region us-east-1
 
     - name: Desplegar Backends en EC2
