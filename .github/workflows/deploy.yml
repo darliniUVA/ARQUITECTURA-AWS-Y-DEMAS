@@ -24,48 +24,13 @@ jobs:
 
     - name: Construir y Subir Imágenes a Docker Hub
       run: |
-        docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/tienda-front_despacho:latest "./proyecto semestral/front_despacho"
-        docker push ${{ secrets.DOCKERHUB_USERNAME }}/tienda-front_despacho:latest
-
-    - name: Configurar credenciales AWS
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
-
-    - name: Desplegar Frontend vía SSM
-  run: |
-    aws ssm send-command \
-      --instance-ids "${{ secrets.AWS_FRONTEND_INSTANCE_ID }}" \
-      --document-name "AWS-RunShellScript" \
-      --comment "Desplegando Frontend" \
-      --parameters commands="[
-        'docker stop tienda-front_despacho || true',
-        'docker rm tienda-front_despacho || true',
-        'docker pull ${{ secrets.DOCKERHUB_USERNAME }}/tienda-front_despacho:latest',
-        'docker run -d --restart always --name tienda-front_despacho -p 80:80 ${{ secrets.DOCKERHUB_USERNAME }}/tienda-front_despacho:latest'
-      ]" \
-      --region us-east-1
-  # ----------------------------------------------------------------
-  # JOB 2: AUTOMATIZACIÓN DE LOS BACKENDS (Ventas y Despachos)
-  # ----------------------------------------------------------------
-  deploy-backends:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout del código
-      uses: actions/checkout@v3
-
-    - name: Iniciar sesión en Docker Hub
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-    - name: Build y Push Backends
-      run: |
-        docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/back-ventas:latest "./proyecto semestral/back-Ventas_SpringBoot/Springboot-API-REST"
-        docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/back-despachos:latest "./proyecto semestral/back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO"
+        # Build de cada capa usando las rutas reales de tu repositorio
+        docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/tienda-frontend:latest "./front_despacho"
+        docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/back-ventas:latest "./back-Ventas_SpringBoot/Springboot-API-REST"
+        docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/back-despachos:latest "./back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO"
+        
+        # Publicación en el registro
+        docker push ${{ secrets.DOCKERHUB_USERNAME }}/tienda-frontend:latest
         docker push ${{ secrets.DOCKERHUB_USERNAME }}/back-ventas:latest
         docker push ${{ secrets.DOCKERHUB_USERNAME }}/back-despachos:latest
 
@@ -88,7 +53,7 @@ jobs:
         aws ssm send-command \
           --document-name "AWS-RunShellScript" \
           --instance-ids "${{ secrets.AWS_FRONTEND_INSTANCE_ID }}" \
-          --parameters '{"commands":["sudo docker stop tienda-front_despacho || true","sudo docker rm tienda-front_despacho || true","sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/tienda-front_despacho:latest","sudo docker run -d --name tienda-front_despacho -p 80:80 ${{ secrets.DOCKERHUB_USERNAME }}/tienda-front_despacho:latest"]}' \
+          --parameters '{"commands":["sudo docker stop tienda-frontend || true","sudo docker rm tienda-frontend || true","sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/tienda-frontend:latest","sudo docker run -d --name tienda-frontend -p 80:80 ${{ secrets.DOCKERHUB_USERNAME }}/tienda-frontend:latest"]}' \
           --region us-east-1
 
     - name: Desplegar Backends en EC2
