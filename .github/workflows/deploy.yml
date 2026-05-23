@@ -1,9 +1,9 @@
-name: Pipeline CI/CD - Despliegue Automatizado (EP2)
+name: CI/CD Pipeline Semestral - EP2
 
 on:
   push:
     branches:
-      - deploy  # Se ejecuta estrictamente al hacer push a la rama deploy según la pauta
+      - deploy
 
 jobs:
   build-and-deploy:
@@ -19,55 +19,59 @@ jobs:
     - name: Iniciar sesión en Docker Hub
       uses: docker/login-action@v2
       with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
 
-    - name: Construir y Subir Imágenes a Docker Hub
+    - name: Construir y subir imágenes a Docker Hub
       run: |
-        # Build de cada capa usando las rutas reales de tu repositorio
-        docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/tienda-frontend:latest "./front_despacho"
-        docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/back-ventas:latest "./back-Ventas_SpringBoot/Springboot-API-REST"
-        docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/back-despachos:latest "./back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO"
+        # Build usando las rutas de tu carpeta "proyecto semestral" y Dockerfiles correctos
+        docker build -t ${{ secrets.DOCKER_USERNAME }}/front-despacho:latest -f "./proyecto semestral/front_despacho/Dockerfile" "./proyecto semestral/front_despacho"
+        docker build -t ${{ secrets.DOCKER_USERNAME }}/back-ventas:latest -f "./proyecto semestral/back-Ventas_SpringBoot/Dockerfile" "./proyecto semestral/back-Ventas_SpringBoot"
+        docker build -t ${{ secrets.DOCKER_USERNAME }}/back-despachos:latest -f "./proyecto semestral/back-Despachos_SpringBoot/Dockerfile" "./proyecto semestral/back-Despachos_SpringBoot"
         
-        # Publicación en el registro
-        docker push ${{ secrets.DOCKERHUB_USERNAME }}/tienda-frontend:latest
-        docker push ${{ secrets.DOCKERHUB_USERNAME }}/back-ventas:latest
-        docker push ${{ secrets.DOCKERHUB_USERNAME }}/back-despachos:latest
+        # Publicación en tu registro público de Docker Hub
+        docker push ${{ secrets.DOCKER_USERNAME }}/front-despacho:latest
+        docker push ${{ secrets.DOCKER_USERNAME }}/back-ventas:latest
+        docker push ${{ secrets.DOCKER_USERNAME }}/back-despachos:latest
 
     # ----------------------------------------------------------------
-    # FASE 2: CONFIGURACIÓN DE AWS ACADEMY
+    # FASE 2: CONFIGURACIÓN DE CREDENCIALES AWS ACADEMY
     # ----------------------------------------------------------------
-    - name: Configurar credenciales AWS
+    - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v2
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }} # Crítico para cuentas de estudiantes
+        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}  # Requerido por AWS Academy
         aws-region: us-east-1
 
     # ----------------------------------------------------------------
-    # FASE 3: DESPLIEGUE AUTOMATIZADO VÍA AWS CLI SSM (CD)
+    # FASE 3: DESPLIEGUE SECUENCIAL VÍA AWS CLI SSM (CD)
     # ----------------------------------------------------------------
-    - name: Desplegar Frontend en EC2
+    
+    # Paso 1: Base de datos primero (PostgreSQL) para evitar fallos de conexión
+    - name: Desplegar Base de Datos en EC2
       run: |
         aws ssm send-command \
+          --instance-ids "${{ secrets.AWS_EC2_DATA_ID }}" \
           --document-name "AWS-RunShellScript" \
-          --instance-ids "${{ secrets.AWS_FRONTEND_INSTANCE_ID }}" \
-          --parameters '{"commands":["sudo docker stop tienda-frontend || true","sudo docker rm tienda-frontend || true","sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/tienda-frontend:latest","sudo docker run -d --name tienda-frontend -p 80:80 ${{ secrets.DOCKERHUB_USERNAME }}/tienda-frontend:latest"]}' \
+          --parameters '{"commands":["sudo docker pull postgres:15-alpine","sudo docker stop db_proyecto || true","sudo docker rm db_proyecto || true","sudo docker run -d --name db_proyecto -p 5432:5432 -e POSTGRES_USER=user_duoc -e POSTGRES_PASSWORD=password_duoc -e POSTGRES_DB=db_despacho_ventas -v postgres_data:/var/lib/postgresql/data postgres:15-alpine"]}' \
           --region us-east-1
 
+    # Paso 2: Backends apuntando a la IP privada de tu instancia de datos
     - name: Desplegar Backends en EC2
       run: |
         aws ssm send-command \
+          --instance-ids "${{ secrets.AWS_EC2_BACKEND_ID }}" \
           --document-name "AWS-RunShellScript" \
-          --instance-ids "${{ secrets.AWS_BACKEND_INSTANCE_ID }}" \
-          --parameters '{"commands":["sudo docker stop tienda-back-ventas tienda-back-despachos || true","sudo docker rm tienda-back-ventas tienda-back-despachos || true","sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/back-ventas:latest","sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/back-despachos:latest","sudo docker run -d --name tienda-back-ventas -p 8081:8081 -e DB_HOST=${{ secrets.DB_INSTANCE_IP }} -e DB_USER=root -e DB_PASSWORD=admin123 ${{ secrets.DOCKERHUB_USERNAME }}/back-ventas:latest","sudo docker run -d --name tienda-back-despachos -p 8082:8082 -e DB_HOST=${{ secrets.DB_INSTANCE_IP }} -e DB_USER=root -e DB_PASSWORD=admin123 ${{ secrets.DOCKERHUB_USERNAME }}/back-despachos:latest"]}' \
+          --parameters '{"commands":["sudo docker pull ${{ secrets.DOCKER_USERNAME }}/back-ventas:latest","sudo docker pull ${{ secrets.DOCKER_USERNAME }}/back-despachos:latest","sudo docker stop api_ventas api_despachos || true","sudo docker rm api_ventas api_despachos || true","sudo docker run -d --name api_ventas -p 8080:8080 -e SPRING_DATASOURCE_URL=jdbc:postgresql://${{ secrets.AWS_DB_PRIVATE_IP }}:5432/db_despacho_ventas -e SPRING_DATASOURCE_USERNAME=user_duoc -e SPRING_DATASOURCE_PASSWORD=password_duoc ${{ secrets.DOCKER_USERNAME }}/back-ventas:latest","sudo docker run -d --name api_despachos -p 8081:8081 -e SPRING_DATASOURCE_URL=jdbc:postgresql://${{ secrets.AWS_DB_PRIVATE_IP }}:5432/db_despacho_ventas -e SPRING_DATASOURCE_USERNAME=user_duoc -e SPRING_DATASOURCE_PASSWORD=password_duoc ${{ secrets.DOCKER_USERNAME }}/back-despachos:latest"]}' \
           --region us-east-1
 
-    - name: Asegurar Persistencia de Base de Datos en EC2
+    # Paso 3: Frontend al final expuesto en el puerto web estándar
+    - name: Desplegar Frontend en EC2
       run: |
         aws ssm send-command \
+          --instance-ids "${{ secrets.AWS_EC2_FRONTEND_ID }}" \
           --document-name "AWS-RunShellScript" \
-          --instance-ids "${{ secrets.AWS_DB_INSTANCE_ID }}" \
-          --parameters '{"commands":["if [ ! \"$(sudo docker ps -q -f name=tienda-db)\" ]; then if [ \"$(sudo docker ps -aq -f name=tienda-db)\" ]; then sudo docker start tienda-db; else sudo docker run -d --name tienda-db -p 3306:3306 -e MYSQL_ROOT_PASSWORD=admin123 -e MYSQL_DATABASE=tienda_perritos -v dbdata:/var/lib/mysql --restart always mysql:8; fi; fi"]}' \
+          --parameters '{"commands":["sudo docker pull ${{ secrets.DOCKER_USERNAME }}/front-despacho:latest","sudo docker stop front_despacho || true","sudo docker rm front_despacho || true","sudo docker run -d --name front_despacho -p 80:80 ${{ secrets.DOCKER_USERNAME }}/front-despacho:latest"]}' \
           --region us-east-1

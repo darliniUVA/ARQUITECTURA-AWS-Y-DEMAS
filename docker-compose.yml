@@ -3,7 +3,7 @@ version: "3.8"
 services:
   front-despacho:
     build: ./front_despacho
-    container_name: tienda-frontend
+    container_name: tienda-front_despacho
     ports:
       - "8080:80"
 
