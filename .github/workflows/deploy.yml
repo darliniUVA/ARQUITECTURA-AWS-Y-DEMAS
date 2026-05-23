@@ -49,6 +49,15 @@ jobs:
     # FASE 3: DESPLIEGUE AUTOMATIZADO VÍA AWS CLI SSM (CD)
     # ----------------------------------------------------------------
     
+    # ----------------------------------------------------------------
+    # DEBUG DE SECRETS
+    # ----------------------------------------------------------------
+    - name: Verificar Instance IDs
+      run: |
+        echo "FRONTEND=${{ secrets.AWS_FRONTEND_INSTANCE_ID }}"
+        echo "BACKEND=${{ secrets.AWS_BACKEND_INSTANCE_ID }}"
+        echo "DB=${{ secrets.AWS_DB_INSTANCE_ID }}"
+
     
     - name: Desplegar Frontend en EC2
       run: |
