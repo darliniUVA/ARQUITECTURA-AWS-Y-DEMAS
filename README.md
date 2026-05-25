@@ -125,7 +125,7 @@ yum install git -y
 systemctl enable docker
 systemctl start docker
 usermod -aG docker ec2-user
-docker run -d -p 8080:80 --name microservicio-back httpd
+docker run -d -p 8081:8081 --name microservicio-back httpd
 
 6.-SCRIPT DATA
 	#!/bin/bash
@@ -136,6 +136,7 @@ yum install git -y
 systemctl enable docker
 systemctl start docker
 usermod -aG docker ec2-user
+docker run -d -p 8082:8082 --name microservicio-back httpd
 
 
 
